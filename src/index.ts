@@ -75,7 +75,6 @@ class Checkerboard {
     } else {
       throw new Error("Lousy board size")
     }
-
   }
 
   get numRows():number {
@@ -288,16 +287,16 @@ function makeButton(name:string, x:number, y:number):PIXI.Sprite {
 }
 
 function layoutUI():void {
-  const MarginLeft:number = 208;
+  const MarginLeft:number = 256;
 
-  statusField.x = MarginLeft;
-  statusField.y = 720 - 64;
+  statusField.x = 48;
+  statusField.y = 640;
   stage.addChild(statusField);
 
   stage.addChild(makeButton("playBtn", MarginLeft, 80));
-  stage.addChild(makeButton("stopBtn", MarginLeft, 220));
-  stage.addChild(makeButton("resetBtn", MarginLeft, 360));
-  stage.addChild(makeButton("shuffleBtn", MarginLeft, 500));
+  // stage.addChild(makeButton("stopBtn", MarginLeft, 220));
+  // stage.addChild(makeButton("resetBtn", MarginLeft, 360));
+  // stage.addChild(makeButton("shuffleBtn", MarginLeft, 500));
 
   updateCells();
 
@@ -327,9 +326,6 @@ function loadAudio():void {
 ///////////// Drawing ////////////////////////////
 
 function seedBoard():void {
-  const openBorderColor:number = 0x33cc33;
-  const walledBorderColor:number = 0xcc3333;
-
   let seed:PIXI.Point = new PIXI.Point(randomInt(0,board.numRows-1), randomInt(0, board.numColumns-1));
   board.occupyCell(seed.x, seed.y);
 
@@ -346,10 +342,6 @@ function initBoard(board:Checkerboard):void {
 }
 
 function updateCells():void {
-  // if (!board.isDirty) {
-  //   console.log("no can update clean grid");
-  //   return;
-  // }
   const normalCellColor:number = 0x666666;
   const occupiedCellColor:number = 0xcc33cc;
   const visitedCellColor:number = 0xcccc66;
@@ -399,22 +391,16 @@ function updateCells():void {
       }
     }
   }
-  //board.isDirty = false;
 }
 
 function drawBoard():void {
-  // if (!isRunning) {
-  //   console.log("drawBoard bails: not running");
-  //   return;
-  // }
   updateCells();
   renderer.render(stage);
-  //board.isDirty = false;
+
   if (!hasEnded) {
-    console.log("Let's keep on going");
     board.advanceCursor();
   }
-  // statusField.text = (isRunning ? " RUN" : "HALT") + " " + (hasEnded ? "LIVE" : "DEAD");
+  // statusField.text = (isRunning ? "RUN!" : "HALT") + " " + (hasEnded ? "DEAD" : "LIVE");
 }
 
 //////////// main ////////////////////////////////
@@ -439,11 +425,11 @@ let board = new Checkerboard(41, 41);
 initBoard(board);
 loadSprites();
 
-//drawBoard();
 let heartbeatID:number = setInterval(drawBoard, 500);
 
 function handleButtonPress(e):void {
   let target:PIXI.Sprite = e.target as PIXI.Sprite;
+
   switch (target.name) {
     case "playBtn":
       if (!isRunning) {
@@ -454,16 +440,10 @@ function handleButtonPress(e):void {
       }
       break;
     case "stopBtn":
-      console.log("stop means stop");
       isRunning = false;
       break;
     case "resetBtn":
       isRunning = false;
-      // hasEnded = false;
-      boardGraphics.clear();
-      board.createBoard(board.numRows, board.numColumns);
-      updateCells();
-      renderer.render(stage);
       break;
     case "shuffleBtn":
       break;
@@ -472,11 +452,12 @@ function handleButtonPress(e):void {
       return;
   }
   sounds["click"].play();
-  target.scale.x = target.scale.y = 0.83;
+  target.scale.x = target.scale.y = 0.90;
 }
 
 function handleButtonRelease(e):void {
   let target:PIXI.Sprite = e.target as PIXI.Sprite;
+
   target.scale.x = target.scale.y = 1.0;
-  sounds["click"].play();
+//  sounds["click"].play();
 }
