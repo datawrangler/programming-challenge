@@ -7,12 +7,6 @@ document.body.appendChild(renderer.view);
 // You need to create a root container that will hold the scene you want to draw.
 const stage:PIXI.Container = new PIXI.Container();
 
-const BoardMarginLeft:number = 512;
-const BoardMarginTop:number = 20;
-const CellSize:number = 16;
-
-let boardGraphics:PIXI.Graphics = new PIXI.Graphics();
-
 /*
 // Declare a global variable for our sprite so that the animate function can access it.
 let bunny:PIXI.Sprite = null;
@@ -68,7 +62,7 @@ class Checkerboard {
 
   constructor(numRows:number, numColumns:number) {
     const minSize:number = 3; // too simple
-    const maxSize:number = 41;  // won't fit
+    const maxSize:number = 41;  // more won't fit
 
     if (numRows >= minSize) {
       if (numColumns >= minSize) {
@@ -93,7 +87,6 @@ class Checkerboard {
   }
 
   createBoard(numRows, numColumns):void {
-    console.log("board creation time");
     this.grid = [[]];
     this.cursorPosition.x = this.cursorPosition.y = -1;
     for (let row = 0; row<numRows; row++) {
@@ -111,14 +104,12 @@ class Checkerboard {
         let cell = this.grid[row][col];
         let dir:Direction = randomDirection();
         cell.pointerDirection = dir;
-        // cell.next = this.getNext(row, col, dir);
         let nextPosition:PIXI.Point = this.findNext(row, col, dir);
         if (null != nextPosition) {
           cell.next = this.getCell(nextPosition.y, nextPosition.x);
         }
       }
     }
-    console.log("shuffleArrows() sets isDirty");
     this.isDirty = true;
   }
 
@@ -149,10 +140,11 @@ class Checkerboard {
 
   occupyCell(row:number, col:number):void {
     sounds["wetfoot"].play();
+
     let theCell:CheckerboardCell = this.getCell(row, col);
     theCell.occupied = theCell.visited = true;
     this.isDirty = true;
-    // this.cursorPosition = theCell;
+
     this.cursorPosition.x = col;
     this.cursorPosition.y = row;
   }
@@ -200,7 +192,7 @@ interface LinkedList {
   next:LinkedList;
 }
 
-//////////////////////////////////////////////////
+/////////////// Cell /////////////////////////////
 
 class CheckerboardCell implements LinkedList {
   next:LinkedList = null;
@@ -261,9 +253,6 @@ function willLoop(firstCell:LinkedList):boolean {
 
 /////////////////// GUI //////////////////////////
 
-let sounds = {};
-let sprites = {};
-
 function loadSprites():void {
   PIXI.loader
     .add("playBtn", "images/playBtn.png")
@@ -272,14 +261,12 @@ function loadSprites():void {
     .add("shuffleBtn", "images/shuffleBtn.png")
     .load(
       (loader, resources) => {
-        // console.log("images added, res: " + resources);
         for (let prop in resources) {
           if (resources[prop].error) {
             console.log("Had a loading error: " + resources[prop].error);
             continue;
           }
           sprites[prop] = new PIXI.Sprite(resources[prop].texture);
-          // console.log("property of " + prop + " is " + resources[prop]);
         }
         layoutUI();
       }
@@ -291,19 +278,26 @@ function makeButton(name:string, x:number, y:number):PIXI.Sprite {
   sprite.name = name;
   sprite.position.x = x;
   sprite.position.y = y;
+  sprite.pivot = new PIXI.Point(sprite.width/2, sprite.height/2);
   sprite.interactive = true;
   sprite.buttonMode = true;
   sprite.on("pointerdown", handleButtonPress);
+  sprite.on("pointerup", handleButtonRelease);
+  sprite.on("pointerupoutside", handleButtonRelease);
   return sprite;
 }
 
 function layoutUI():void {
-  const MarginLeft:number = 48;
+  const MarginLeft:number = 208;
 
-  stage.addChild(makeButton("playBtn", MarginLeft, 20));
-  stage.addChild(makeButton("stopBtn", MarginLeft, 160));
-  stage.addChild(makeButton("resetBtn", MarginLeft, 300));
-  stage.addChild(makeButton("shuffleBtn", MarginLeft, 440));
+  statusField.x = MarginLeft;
+  statusField.y = 720 - 64;
+  stage.addChild(statusField);
+
+  stage.addChild(makeButton("playBtn", MarginLeft, 80));
+  stage.addChild(makeButton("stopBtn", MarginLeft, 220));
+  stage.addChild(makeButton("resetBtn", MarginLeft, 360));
+  stage.addChild(makeButton("shuffleBtn", MarginLeft, 500));
 
   updateCells();
 
@@ -330,55 +324,7 @@ function loadAudio():void {
   sounds["tada"] = audio;
 }
 
-//////////////////////////////////////////////////
-
-let isRunning:boolean = false;
-let hasEnded:boolean = false;
-
-//////////////////////////////////////////////////
-
-console.log("And away we go");
-loadAudio();
-let board = new Checkerboard(41, 41);
-
-initBoard(board);
-loadSprites();
-
-//drawBoard();
-let heartbeatID:number = setInterval(drawBoard, 1000);
-
-function handleButtonPress(e):void {
-  sounds["click"].play();
-  let target:PIXI.Sprite = e.target as PIXI.Sprite;
-  switch (target.name) {
-    case "playBtn":
-      if (!isRunning) {
-        seedBoard();
-      }
-      isRunning = true;
-      break;
-    case "stopBtn":
-      isRunning = false;
-      break;
-    case "resetBtn":
-      isRunning = false;
-      hasEnded = false;
-      boardGraphics.clear();
-      console.log("dirty1? " + board.isDirty);
-      board.createBoard(board.numRows, board.numColumns);
-      console.log("dirty2? " + board.isDirty);
-      renderer.render(stage);
-      console.log("dirty3? " + board.isDirty);
-      break;
-    case "shuffleBtn":
-      break;
-    default:
-      console.log("unhandled click on " + target.name);
-      break;
-  }
-}
-
-//////////////////////////////////////////////////
+///////////// Drawing ////////////////////////////
 
 function seedBoard():void {
   const openBorderColor:number = 0x33cc33;
@@ -388,34 +334,28 @@ function seedBoard():void {
   board.occupyCell(seed.x, seed.y);
 
   let hasLoop:boolean = board.probe(seed.x, seed.y);
-  console.log("from " + seed.x + "," + seed.y + " we can " + (hasLoop ? "not" : "")+ " escape");
-  // boardGraphics.beginFill(0x000000, 0.0);
-  // boardGraphics.drawRect(0,0, CellSize * board.numColumns, CellSize * board.numRows);
+  console.log("from " + seed.x + "," + seed.y + " we can " + (hasLoop ? "not " : "")+ "escape");
 }
 
 function initBoard(board:Checkerboard):void {
-  let numRows:number = board.numRows;
-  let numColumns:number = board.numColumns;
-
   boardGraphics.position.set(BoardMarginLeft, BoardMarginTop);
   boardGraphics.lineStyle(1, 0xffffff, 1);
   boardGraphics.beginFill(0x666666, 1);
+
   stage.addChild(boardGraphics);
 }
 
 function updateCells():void {
-  if (!board.isDirty) {
-    console.log("no can update clean grid");
-    return;
-  }
+  // if (!board.isDirty) {
+  //   console.log("no can update clean grid");
+  //   return;
+  // }
   const normalCellColor:number = 0x666666;
   const occupiedCellColor:number = 0xcc33cc;
   const visitedCellColor:number = 0xcccc66;
 
   let penX:number = 0;
   let penY:number = 0;
-
-  // console.log("board is " + board.numRows + " rows by " + board.numColumns + " cols");
 
   for (let row:number=0; row<board.numRows; row++) {
     penY = CellSize * row;
@@ -429,11 +369,9 @@ function updateCells():void {
       } else if (theCell.visited) {
         cellBGColor = visitedCellColor;
       }
-      // console.log("we will use " + cellBGColor);
       boardGraphics.beginFill(cellBGColor, 1);
       boardGraphics.drawRect(penX,penY, CellSize,CellSize);
       boardGraphics.endFill();
-      // console.log("collecting cell at " + row + "," + col + ", pen at " + penX + "," + penY);
 
       switch (theCell.pointerDirection) {
         case Direction.Up:
@@ -461,16 +399,84 @@ function updateCells():void {
       }
     }
   }
-  board.isDirty = false;
+  //board.isDirty = false;
 }
 
 function drawBoard():void {
-  if (!isRunning) {
-    return;
-  }
+  // if (!isRunning) {
+  //   console.log("drawBoard bails: not running");
+  //   return;
+  // }
   updateCells();
   renderer.render(stage);
+  //board.isDirty = false;
   if (!hasEnded) {
+    console.log("Let's keep on going");
     board.advanceCursor();
   }
+  // statusField.text = (isRunning ? " RUN" : "HALT") + " " + (hasEnded ? "LIVE" : "DEAD");
+}
+
+//////////// main ////////////////////////////////
+
+const BoardMarginLeft:number = 512;
+const BoardMarginTop:number = 20;
+const CellSize:number = 16;
+
+let boardGraphics:PIXI.Graphics = new PIXI.Graphics();
+
+let sounds = {};
+let sprites = {};
+let statusField = new PIXI.Text("", {fontFamily:"Arial", fontSize:32, fill:0xffffff});
+
+let isRunning:boolean = false;
+let hasEnded:boolean = false;
+
+console.log("And away we go");
+loadAudio();
+
+let board = new Checkerboard(41, 41);
+initBoard(board);
+loadSprites();
+
+//drawBoard();
+let heartbeatID:number = setInterval(drawBoard, 500);
+
+function handleButtonPress(e):void {
+  let target:PIXI.Sprite = e.target as PIXI.Sprite;
+  switch (target.name) {
+    case "playBtn":
+      if (!isRunning) {
+        seedBoard();
+        isRunning = true;
+      } else {
+        console.log("playBtn fail: already running");
+      }
+      break;
+    case "stopBtn":
+      console.log("stop means stop");
+      isRunning = false;
+      break;
+    case "resetBtn":
+      isRunning = false;
+      // hasEnded = false;
+      boardGraphics.clear();
+      board.createBoard(board.numRows, board.numColumns);
+      updateCells();
+      renderer.render(stage);
+      break;
+    case "shuffleBtn":
+      break;
+    default:
+      console.log("unhandled click on " + target.name);
+      return;
+  }
+  sounds["click"].play();
+  target.scale.x = target.scale.y = 0.83;
+}
+
+function handleButtonRelease(e):void {
+  let target:PIXI.Sprite = e.target as PIXI.Sprite;
+  target.scale.x = target.scale.y = 1.0;
+  sounds["click"].play();
 }
