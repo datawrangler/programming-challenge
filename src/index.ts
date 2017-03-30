@@ -309,19 +309,22 @@ function makeButton(name:string, x:number, y:number):PIXI.Sprite {
 
 function layoutUI():void {
   const MarginLeft:number = 256;
+  const MarginTop:number = 125;
+  const ButtonOffset:number = 90;
 
   statusField.x = 48;
   statusField.y = 640;
   stage.addChild(statusField);
 
-  buttons["play"] = stage.addChild(makeButton("playBtn", MarginLeft, 80)) as PIXI.Sprite;
-  buttons["stop"] = stage.addChild(makeButton("stopBtn", MarginLeft, 170)) as PIXI.Sprite;
-  buttons["reset"] = stage.addChild(makeButton("resetBtn", MarginLeft, 260)) as PIXI.Sprite;
-  buttons["shuffle"] = stage.addChild(makeButton("shuffleBtn", MarginLeft, 350)) as PIXI.Sprite;
-  buttons["embiggen"] = stage.addChild(makeButton("embiggenBtn", MarginLeft, 440)) as PIXI.Sprite;
-  buttons["unbiggen"] = stage.addChild(makeButton("unbiggenBtn", MarginLeft, 530)) as PIXI.Sprite;
+  buttons["play"] = stage.addChild(makeButton("playBtn", MarginLeft, MarginTop)) as PIXI.Sprite;
+  buttons["stop"] = stage.addChild(makeButton("stopBtn", MarginLeft, MarginTop + 1 * ButtonOffset)) as PIXI.Sprite;
+  buttons["reset"] = stage.addChild(makeButton("resetBtn", MarginLeft, MarginTop + 2 * ButtonOffset)) as PIXI.Sprite;
+  buttons["shuffle"] = stage.addChild(makeButton("shuffleBtn", MarginLeft, MarginTop + 3 * ButtonOffset)) as PIXI.Sprite;
+  buttons["embiggen"] = stage.addChild(makeButton("embiggenBtn", MarginLeft, MarginTop + 4 * ButtonOffset)) as PIXI.Sprite;
+  buttons["unbiggen"] = stage.addChild(makeButton("unbiggenBtn", MarginLeft, MarginTop + 5 * ButtonOffset)) as PIXI.Sprite;
 
   updateCells();
+  updateUI();
 
   renderer.render(stage);
 }
@@ -372,15 +375,15 @@ function loadAudio():void {
 ///////////// Drawing ////////////////////////////
 
 function initBoard(board:Checkerboard):void {
+  let boardWidth:number = board.numColumns * CellSize;
+  let boardHeight:number = board.numRows * CellSize;
   let surface = new PIXI.Graphics();
   surface.lineStyle(1, 0xffffff, 1);    // 16777215
   surface.beginFill(0x666666, 1);
-  // surface.drawRect(0,0, board.numColumns * CellSize, board.numRows * CellSize);
   theBigBoard.addChild(surface);
-  theBigBoard.position.set(BoardMarginLeft, BoardMarginTop);
+  theBigBoard.position.set(spine - boardWidth/2, waistLine - boardHeight/2);
 
   stage.addChild(theBigBoard);
-  // console.log("the big board is " + theBigBoard.width + "x" + theBigBoard.height);
 }
 
 function updateCells():void {
@@ -390,6 +393,7 @@ function updateCells():void {
 
   let penX:number = 0;
   let penY:number = 0;
+  let boardGraphics = theBigBoard.getChildAt(0) as PIXI.Graphics;
 
   for (let row:number=0; row<board.numRows; row++) {
     penY = CellSize * row;
@@ -398,8 +402,6 @@ function updateCells():void {
       penX = CellSize * col;
       let theCell:CheckerboardCell = board.getCell(row, col);
       let cellBGColor:number = normalCellColor;
-
-      let boardGraphics = theBigBoard.getChildAt(0) as PIXI.Graphics;
 
       if (theCell.occupied) {
         cellBGColor = occupiedCellColor;
@@ -468,6 +470,8 @@ enum GameState {
 
 const BoardMarginLeft:number = 512;
 const BoardMarginTop:number = 20;
+const waistLine:number = 350;
+const spine:number = BoardMarginLeft + 384;
 const CellSize:number = 48;
 const minBoardSize:number = 3; // too simple
 const maxBoardSize:number = 13;  // more won't fit
@@ -493,7 +497,6 @@ animate();
 function expandBoard():void {
   let numRows:number = board.numRows;
   if (numRows < maxBoardSize) {
-    // (theBigBoard.getChildAt(0) as PIXI.Graphics).clear();
     numRows++;
     board = new Checkerboard(numRows, numRows);
     initBoard(board);
@@ -503,7 +506,6 @@ function expandBoard():void {
 function shrinkBoard():void {
   let numRows:number = board.numRows;
   if (numRows > minBoardSize) {
-    // boardGraphics.clear();
     numRows--;
     board = new Checkerboard(numRows, numRows);
     initBoard(board);
@@ -513,8 +515,8 @@ function shrinkBoard():void {
 function handleButtonPress(e):void {
   let target:PIXI.Sprite = e.target as PIXI.Sprite;
 
+  // low-budget enabled flag
   if (target.alpha < 1.0) {
-    console.log("this baby's dim");
     return;
   }
   switch (target.name) {
