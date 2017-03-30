@@ -29,18 +29,14 @@ PIXI.loader.add('bunny', 'images/bunny.jpeg').load(function (loader:PIXI.loaders
     // kick off the animation loop (defined below)
     animate();
 });
-
+*/
 function animate() {
     // start the timer for the next animation loop
     requestAnimationFrame(animate);
-
-    // each frame we spin the bunny around a bit
-    bunny.rotation += 0.01;
-
     // this is the main render call that makes pixi draw your container and its children.
     renderer.render(stage);
 }
-*/
+
 
 //////////////////////////////////////////////////
 
@@ -55,14 +51,14 @@ enum Direction {
 
 class Checkerboard {
 
-  isDirty:boolean = false;
+  roundOver:boolean = false;
 
   private grid:CheckerboardCell[][];
   private cursorPosition:PIXI.Point = new PIXI.Point(-1, -1);
 
   constructor(numRows:number, numColumns:number) {
     const minSize:number = 3; // too simple
-    const maxSize:number = 41;  // more won't fit
+    const maxSize:number = 13;  // more won't fit
 
     if (numRows >= minSize) {
       if (numColumns >= minSize) {
@@ -85,6 +81,20 @@ class Checkerboard {
     return this.grid[0].length;
   }
 
+  get isEmpty():boolean {
+    return this.cursorPosition.y == -1;
+  }
+
+  reset():void {
+    this.roundOver = false;
+    this.cursorPosition.x = this.cursorPosition.y = -1;
+    for (let row = 0; row<this.numRows; row++) {
+      for (let col = 0; col<this.numColumns; col++) {
+        this.grid[row][col].reset();
+      }
+    }
+  }
+
   createBoard(numRows, numColumns):void {
     this.grid = [[]];
     this.cursorPosition.x = this.cursorPosition.y = -1;
@@ -95,6 +105,14 @@ class Checkerboard {
       }
     }
     this.shuffleArrows();
+  }
+
+  seedPath():void {
+    let seed:PIXI.Point = new PIXI.Point(randomInt(0,board.numRows-1), randomInt(0, board.numColumns-1));
+    this.occupyCell(seed.x, seed.y);
+
+    let hasLoop:boolean = this.probe(seed.x, seed.y);
+    console.log("from " + seed.x + "," + seed.y + " we can " + (hasLoop ? "not " : "")+ "escape");
   }
 
   shuffleArrows():void {
@@ -109,32 +127,29 @@ class Checkerboard {
         }
       }
     }
-    this.isDirty = true;
   }
 
-  advanceCursor():void {
+  advanceCursor():boolean {
     if (this.cursorPosition.x < 0) {
       return; // no cursor, no go
     }
-    if (!hasEnded) {
-      let currentCell:CheckerboardCell = this.getCell(this.cursorPosition.y, this.cursorPosition.x);
-      let nextPosition:PIXI.Point = this.findNext(this.cursorPosition.y, this.cursorPosition.x, currentCell.pointerDirection);
-      if (null != nextPosition) {
-        let nextCell:CheckerboardCell = this.getCell(nextPosition.y, nextPosition.x);
-        if (!nextCell.visited) {
-          this.occupyCell(nextPosition.y, nextPosition.x);
-          currentCell.occupied = false;
-        } else {
-          hasEnded = true;
-          isRunning = false;
-          sounds["tbone"].play();
-        }
+
+    let currentCell:CheckerboardCell = this.getCell(this.cursorPosition.y, this.cursorPosition.x);
+    let nextPosition:PIXI.Point = this.findNext(this.cursorPosition.y, this.cursorPosition.x, currentCell.pointerDirection);
+    if (null != nextPosition) {
+      let nextCell:CheckerboardCell = this.getCell(nextPosition.y, nextPosition.x);
+      if (!nextCell.visited) {
+        this.occupyCell(nextPosition.y, nextPosition.x);
+        currentCell.occupied = false;
       } else {
-        hasEnded = true;
-        isRunning = false;
-        sounds["tada"].play();
+        this.roundOver = true;
+        sounds["tbone"].play();
       }
+    } else {
+      this.roundOver = true;
+      sounds["tada"].play();
     }
+    return this.roundOver;
   }
 
   occupyCell(row:number, col:number):void {
@@ -142,7 +157,6 @@ class Checkerboard {
 
     let theCell:CheckerboardCell = this.getCell(row, col);
     theCell.occupied = theCell.visited = true;
-    this.isDirty = true;
 
     this.cursorPosition.x = col;
     this.cursorPosition.y = row;
@@ -150,6 +164,10 @@ class Checkerboard {
 
   getCell(row:number, col:number):CheckerboardCell {
     return this.grid[row][col];
+  }
+
+  probe(row:number, col:number):boolean {
+    return willLoop(this.grid[row][col]);
   }
 
   private findNext(row:number, col:number, dir:Direction):PIXI.Point {
@@ -179,10 +197,6 @@ class Checkerboard {
     return nextPosition;
   }
 
-  probe(row:number, col:number):boolean {
-    return willLoop(this.grid[row][col]);
-  }
-
 }
 
 //////////////////////////////////////////////////
@@ -198,6 +212,14 @@ class CheckerboardCell implements LinkedList {
   pointerDirection: Direction;
   occupied:boolean = false;
   visited:boolean = false;
+
+  reset():void {
+    this.occupied = this.visited = false;
+  }
+
+  toString():string {
+    return "[Cell o:" + this.occupied + " v:" + this.visited + "]";
+  }
 }
 
 ////////////////// utils /////////////////////////
@@ -254,10 +276,12 @@ function willLoop(firstCell:LinkedList):boolean {
 
 function loadSprites():void {
   PIXI.loader
-    .add("playBtn", "images/playBtn.png")
-    .add("stopBtn", "images/stopBtn.png")
-    .add("resetBtn", "images/resetBtn.png")
-    .add("shuffleBtn", "images/shuffleBtn.png")
+    .add("playBtn", "images/playSmBtn.png")
+    .add("stopBtn", "images/stopSmBtn.png")
+    .add("resetBtn", "images/resetSmBtn.png")
+    .add("shuffleBtn", "images/shuffleSmBtn.png")
+    .add("embiggenBtn", "images/embiggenSmBtn.png")
+    .add("unbiggenBtn", "images/unbiggenSmBtn.png")
     .load(
       (loader, resources) => {
         for (let prop in resources) {
@@ -293,14 +317,48 @@ function layoutUI():void {
   statusField.y = 640;
   stage.addChild(statusField);
 
-  stage.addChild(makeButton("playBtn", MarginLeft, 80));
-  // stage.addChild(makeButton("stopBtn", MarginLeft, 220));
-  // stage.addChild(makeButton("resetBtn", MarginLeft, 360));
-  // stage.addChild(makeButton("shuffleBtn", MarginLeft, 500));
+  buttons["play"] = stage.addChild(makeButton("playBtn", MarginLeft, 80)) as PIXI.Sprite;
+  buttons["stop"] = stage.addChild(makeButton("stopBtn", MarginLeft, 170)) as PIXI.Sprite;
+  buttons["reset"] = stage.addChild(makeButton("resetBtn", MarginLeft, 260)) as PIXI.Sprite;
+  buttons["shuffle"] = stage.addChild(makeButton("shuffleBtn", MarginLeft, 350)) as PIXI.Sprite;
+  buttons["embiggen"] = stage.addChild(makeButton("embiggenBtn", MarginLeft, 440)) as PIXI.Sprite;
+  buttons["unbiggen"] = stage.addChild(makeButton("unbiggenBtn", MarginLeft, 530)) as PIXI.Sprite;
 
   updateCells();
 
   renderer.render(stage);
+}
+
+function updateUI():void {
+  const Opaque:number = 1.0;
+  const Dimmed:number = 0.5;
+
+  let isRunning:boolean = GameState.Running == gameState;
+  // let isPaused:boolean = GameState.Paused == gameState;
+  let isStopped:boolean = GameState.Stopped == gameState;
+
+  // switch (gameState) {
+  //   case GameState.Running:
+  //   buttons["play"].alpha = Dimmed;
+  //   break;
+  //   case GameState.Stopped:
+  //   buttons["play"].alpha = Opaque;
+  //   break;
+  //   case GameState.Paused:
+  //   buttons["play"].alpha = Opaque;
+  //   break;
+  //   default:
+  //   throw new Error("WTF");
+  // }
+
+  buttons["play"].alpha = Opaque;
+  buttons["stop"].alpha = isStopped ? Dimmed : Opaque;
+  buttons["stop"].alpha = isRunning ? Opaque : Dimmed;
+  buttons["reset"].alpha = !board.roundOver && isStopped ? Dimmed : Opaque;
+
+  buttons["embiggen"].alpha =
+  buttons["unbiggen"].alpha =
+  buttons["shuffle"].alpha = isStopped ? Opaque : Dimmed;
 }
 
 //////////////// Audio ///////////////////////////
@@ -325,26 +383,18 @@ function loadAudio():void {
 
 ///////////// Drawing ////////////////////////////
 
-function seedBoard():void {
-  let seed:PIXI.Point = new PIXI.Point(randomInt(0,board.numRows-1), randomInt(0, board.numColumns-1));
-  board.occupyCell(seed.x, seed.y);
-
-  let hasLoop:boolean = board.probe(seed.x, seed.y);
-  console.log("from " + seed.x + "," + seed.y + " we can " + (hasLoop ? "not " : "")+ "escape");
-}
-
 function initBoard(board:Checkerboard):void {
   boardGraphics.position.set(BoardMarginLeft, BoardMarginTop);
-  boardGraphics.lineStyle(1, 0xffffff, 1);
+  boardGraphics.lineStyle(1, 0xffffff, 1);    // 16777215
   boardGraphics.beginFill(0x666666, 1);
 
   stage.addChild(boardGraphics);
 }
 
 function updateCells():void {
-  const normalCellColor:number = 0x666666;
-  const occupiedCellColor:number = 0xcc33cc;
-  const visitedCellColor:number = 0xcccc66;
+  const normalCellColor:number = 0x666666;    // 13421772
+  const occupiedCellColor:number = 0xcc33cc;  // 13382604
+  const visitedCellColor:number = 0xcccc66;   // 13421670
 
   let penX:number = 0;
   let penY:number = 0;
@@ -356,11 +406,13 @@ function updateCells():void {
       penX = CellSize * col;
       let theCell:CheckerboardCell = board.getCell(row, col);
       let cellBGColor:number = normalCellColor;
+
       if (theCell.occupied) {
         cellBGColor = occupiedCellColor;
       } else if (theCell.visited) {
         cellBGColor = visitedCellColor;
       }
+      boardGraphics.lineStyle(1, 0xffffff, 1);
       boardGraphics.beginFill(cellBGColor, 1);
       boardGraphics.drawRect(penX,penY, CellSize,CellSize);
       boardGraphics.endFill();
@@ -394,59 +446,103 @@ function updateCells():void {
 }
 
 function drawBoard():void {
-  updateCells();
-  renderer.render(stage);
+  let hasEnded:boolean = board.roundOver;
 
-  if (!hasEnded) {
-    board.advanceCursor();
+  if (GameState.Running == gameState) {
+    if (!hasEnded) {
+      hasEnded = board.advanceCursor();
+    }
+    if (hasEnded) {
+      gameState = GameState.Stopped;
+    }
   }
-  // statusField.text = (isRunning ? "RUN!" : "HALT") + " " + (hasEnded ? "DEAD" : "LIVE");
+  updateCells();
+  updateUI();
+  // statusField.text = (GameState.Stopped == gameState ? "S" : GameState.Paused == gameState ? "P" : "R");
+  renderer.render(stage);
+}
+
+//////////// GameState ///////////////////////////
+
+enum GameState {
+  Stopped,
+  Paused,
+  Running
 }
 
 //////////// main ////////////////////////////////
 
 const BoardMarginLeft:number = 512;
 const BoardMarginTop:number = 20;
-const CellSize:number = 16;
+const CellSize:number = 48;
 
 let boardGraphics:PIXI.Graphics = new PIXI.Graphics();
-
 let sounds = {};
 let sprites = {};
-let statusField = new PIXI.Text("", {fontFamily:"Arial", fontSize:32, fill:0xffffff});
-
-let isRunning:boolean = false;
-let hasEnded:boolean = false;
+let buttons = {};
+let statusField = new PIXI.Text("", {fontFamily:"Arial", fontSize:30, fill:0xffffff});
+let gameState = GameState.Stopped;
 
 console.log("And away we go");
 loadAudio();
-
-let board = new Checkerboard(41, 41);
-initBoard(board);
 loadSprites();
 
+let board = new Checkerboard(6, 6);
+initBoard(board);
+
 let heartbeatID:number = setInterval(drawBoard, 500);
+animate();
 
 function handleButtonPress(e):void {
   let target:PIXI.Sprite = e.target as PIXI.Sprite;
 
+  if (target.alpha < 1.0) {
+    console.log("this baby's dim");
+    return;
+  }
   switch (target.name) {
     case "playBtn":
-      if (!isRunning) {
-        seedBoard();
-        isRunning = true;
-      } else {
-        console.log("playBtn fail: already running");
+      switch (gameState) {
+        case GameState.Running:
+          console.log("no playing during gameplay");
+          return;
+        case GameState.Stopped:
+          board.reset();
+          board.seedPath();
+          // now fall through. still legal?
+        case GameState.Paused:
+          gameState = GameState.Running;
+          break;
+        default:
+          console.log("You should never this fnord");
       }
       break;
     case "stopBtn":
-      isRunning = false;
+      if (GameState.Running != gameState) {
+        console.log("no stopping unless gameplay");
+        return;
+      }
+      gameState = GameState.Paused;
       break;
     case "resetBtn":
-      isRunning = false;
+      gameState = GameState.Stopped;
+      board.reset();
+      drawBoard();
       break;
     case "shuffleBtn":
+      if (GameState.Running == gameState) {
+        console.log("no shuffling during gameplay");
+        return;
+      }
+      gameState = GameState.Stopped;
+      boardGraphics.clear();
+      board.createBoard(board.numRows, board.numColumns);
+      drawBoard();
       break;
+    case "embiggenBtn":
+    return;
+    case "unbiggenBtn":
+    return;
     default:
       console.log("unhandled click on " + target.name);
       return;
@@ -458,6 +554,8 @@ function handleButtonPress(e):void {
 function handleButtonRelease(e):void {
   let target:PIXI.Sprite = e.target as PIXI.Sprite;
 
-  target.scale.x = target.scale.y = 1.0;
+  if (null != target) {
+    target.scale.x = target.scale.y = 1.0;
 //  sounds["click"].play();
+  }
 }
