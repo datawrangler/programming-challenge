@@ -57,13 +57,10 @@ class Checkerboard {
   private cursorPosition:PIXI.Point = new PIXI.Point(-1, -1);
 
   constructor(numRows:number, numColumns:number) {
-    const minSize:number = 3; // too simple
-    const maxSize:number = 13;  // more won't fit
-
-    if (numRows >= minSize) {
-      if (numColumns >= minSize) {
-        if (numColumns <= maxSize) {
-          if (numRows <= maxSize) {
+    if (numRows >= minBoardSize) {
+      if (numColumns >= minBoardSize) {
+        if (numColumns <= maxBoardSize) {
+          if (numRows <= maxBoardSize) {
             this.createBoard(numRows, numColumns);
           }
         }
@@ -82,7 +79,7 @@ class Checkerboard {
   }
 
   get isEmpty():boolean {
-    return this.cursorPosition.y == -1;
+    return this.cursorPosition.y < 0;
   }
 
   reset():void {
@@ -130,7 +127,7 @@ class Checkerboard {
   }
 
   advanceCursor():boolean {
-    if (this.cursorPosition.x < 0) {
+    if (this.isEmpty) {
       return; // no cursor, no go
     }
 
@@ -334,22 +331,7 @@ function updateUI():void {
   const Dimmed:number = 0.5;
 
   let isRunning:boolean = GameState.Running == gameState;
-  // let isPaused:boolean = GameState.Paused == gameState;
   let isStopped:boolean = GameState.Stopped == gameState;
-
-  // switch (gameState) {
-  //   case GameState.Running:
-  //   buttons["play"].alpha = Dimmed;
-  //   break;
-  //   case GameState.Stopped:
-  //   buttons["play"].alpha = Opaque;
-  //   break;
-  //   case GameState.Paused:
-  //   buttons["play"].alpha = Opaque;
-  //   break;
-  //   default:
-  //   throw new Error("WTF");
-  // }
 
   buttons["play"].alpha = Opaque;
   buttons["stop"].alpha = isStopped ? Dimmed : Opaque;
@@ -359,6 +341,12 @@ function updateUI():void {
   buttons["embiggen"].alpha =
   buttons["unbiggen"].alpha =
   buttons["shuffle"].alpha = isStopped ? Opaque : Dimmed;
+  if (maxBoardSize == board.numRows) {
+    buttons["embiggen"].alpha = Dimmed;
+  }
+  if (minBoardSize == board.numRows) {
+    buttons["unbiggen"].alpha = Dimmed;
+  }
 }
 
 //////////////// Audio ///////////////////////////
@@ -384,11 +372,15 @@ function loadAudio():void {
 ///////////// Drawing ////////////////////////////
 
 function initBoard(board:Checkerboard):void {
-  boardGraphics.position.set(BoardMarginLeft, BoardMarginTop);
-  boardGraphics.lineStyle(1, 0xffffff, 1);    // 16777215
-  boardGraphics.beginFill(0x666666, 1);
+  let surface = new PIXI.Graphics();
+  surface.lineStyle(1, 0xffffff, 1);    // 16777215
+  surface.beginFill(0x666666, 1);
+  // surface.drawRect(0,0, board.numColumns * CellSize, board.numRows * CellSize);
+  theBigBoard.addChild(surface);
+  theBigBoard.position.set(BoardMarginLeft, BoardMarginTop);
 
-  stage.addChild(boardGraphics);
+  stage.addChild(theBigBoard);
+  // console.log("the big board is " + theBigBoard.width + "x" + theBigBoard.height);
 }
 
 function updateCells():void {
@@ -406,6 +398,8 @@ function updateCells():void {
       penX = CellSize * col;
       let theCell:CheckerboardCell = board.getCell(row, col);
       let cellBGColor:number = normalCellColor;
+
+      let boardGraphics = theBigBoard.getChildAt(0) as PIXI.Graphics;
 
       if (theCell.occupied) {
         cellBGColor = occupiedCellColor;
@@ -475,8 +469,11 @@ enum GameState {
 const BoardMarginLeft:number = 512;
 const BoardMarginTop:number = 20;
 const CellSize:number = 48;
+const minBoardSize:number = 3; // too simple
+const maxBoardSize:number = 13;  // more won't fit
 
-let boardGraphics:PIXI.Graphics = new PIXI.Graphics();
+let theBigBoard:PIXI.Sprite = new PIXI.Sprite();
+
 let sounds = {};
 let sprites = {};
 let buttons = {};
@@ -492,6 +489,26 @@ initBoard(board);
 
 let heartbeatID:number = setInterval(drawBoard, 500);
 animate();
+
+function expandBoard():void {
+  let numRows:number = board.numRows;
+  if (numRows < maxBoardSize) {
+    // (theBigBoard.getChildAt(0) as PIXI.Graphics).clear();
+    numRows++;
+    board = new Checkerboard(numRows, numRows);
+    initBoard(board);
+  }
+}
+
+function shrinkBoard():void {
+  let numRows:number = board.numRows;
+  if (numRows > minBoardSize) {
+    // boardGraphics.clear();
+    numRows--;
+    board = new Checkerboard(numRows, numRows);
+    initBoard(board);
+  }
+}
 
 function handleButtonPress(e):void {
   let target:PIXI.Sprite = e.target as PIXI.Sprite;
@@ -535,14 +552,18 @@ function handleButtonPress(e):void {
         return;
       }
       gameState = GameState.Stopped;
-      boardGraphics.clear();
+      (theBigBoard.getChildAt(0) as PIXI.Graphics).clear();
       board.createBoard(board.numRows, board.numColumns);
       drawBoard();
       break;
     case "embiggenBtn":
-    return;
+      (theBigBoard.getChildAt(0) as PIXI.Graphics).clear();
+      expandBoard();
+      break;
     case "unbiggenBtn":
-    return;
+      (theBigBoard.getChildAt(0) as PIXI.Graphics).clear();
+      shrinkBoard();
+      break;
     default:
       console.log("unhandled click on " + target.name);
       return;
