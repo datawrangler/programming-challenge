@@ -14,8 +14,8 @@
     "exe": "./node_modules/.bin/electron main.js main.js",
     "start": "npm run watch",
     "clean": "cross-conf-env rimraf npm_package_config_bundle",
-    "build": "cross-conf-env browserify -s npm_package_name npm_package_config_app -o npm_package_config_bundle -p [tsify --target='es6'] -t [preprocessify --contextFile build/debug.json] --no-bundle-external --debug",
-    "watch": "cross-conf-env watchify  -s npm_package_name npm_package_config_app -o npm_package_config_bundle -p [tsify --target='es6'] -t [preprocessify --contextFile build/debug.json] --no-bundle-external --debug -dv"
+    "build": "cross-conf-env browserify -s npm_package_name npm_package_config_app -o npm_package_config_bundle -p [tsify --target=\"es6\"] -t [preprocessify --contextFile build/debug.json] --no-bundle-external --debug",
+    "watch": "cross-conf-env watchify  -s npm_package_name npm_package_config_app -o npm_package_config_bundle -p [tsify --target=\"es6\"] -t [preprocessify --contextFile build/debug.json] --no-bundle-external --debug -dv"
   },
   "browserify": {
     "transform": []
